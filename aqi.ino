@@ -1,5 +1,5 @@
-//Memory budget
-//ssd1306 driver     258648 bytes
+//Memory utilization
+//+ ssd1306 driver   258648 bytes
 //+ wifi lib         262504 bytes
 //+ sample program   271756 bytes
 //+ bme680 lib       289408 bytes
@@ -27,8 +27,8 @@
 // Delay constants
 const int delay1 = 20;
 const int delay2 = 100;
-const int delay3 = 300;
-const int delay4 = 2000;
+const int delay4 = 1000; //show start message
+const int delay5 = 60;   //seconds between measurements
 
 
 // Graphical dimensions
@@ -41,12 +41,12 @@ const int startY=53;
 // Functional status
 bool status = false;
 bool blinkCO2 = true, blinkHumid = false, blinkVOC;
-long StartEpochTime, CurrentEpochTime;
+long StartEpochTime, CurrentEpochTime, LastUpdateEpochTime;
 float LuxFloat;
 int j=0,k;
 
 // Type conversion variables
-String TimeString,IPString,AqiString,PlaintextString,output;
+String TimeString,IPString,AqiString,PlaintextString;
 char TimeChars[22],IPChars[22],AqiChars[22];
 char TemperatureChars[22], PressureChars[22], HumidityChars[22];
 char LuxChars[22];
@@ -190,7 +190,7 @@ void setup()
   Serial.print(".");
   
   timeClient.begin();
-  delay ( delay3 );
+  delay ( delay2 );
   timeClient.update();
   ssd1306_printFixed(0,  24, "Synced:", STYLE_NORMAL);
   TimeString = timeClient.getFormattedTime();
@@ -254,31 +254,35 @@ void loop()
   TimeString = TimeString.substring(0,5);
   TimeString = "Time: " + TimeString + "UTC";
   strcpy(TimeChars, TimeString.c_str());
-    
+  CurrentEpochTime = timeClient.getEpochTime();  
+	
 	// Share results every 60 seconds
-  if(connection.connect(HOST_NAME, HTTP_PORT)) {
-    connection.println(HTTP_METHOD + " " + PATH_NAME + "/store/" + PlaintextString + " HTTP/1.1");
-    Serial.println(HTTP_METHOD + " " + PATH_NAME + "/store/" + PlaintextString + " HTTP/1.1");
-    connection.println("Host: " + String(HOST_NAME));
-    connection.println("Connection: close");
-    connection.println(); 
-  } else {
-    Serial.println("Connection failed");
+  if((CurrentEpochTime - LastUpdateEpochTime) > delay5){
+    LastUpdateEpochTime = timeClient.getEpochTime();
+    if(connection.connect(HOST_NAME, HTTP_PORT)) {
+      connection.println(HTTP_METHOD + " " + PATH_NAME + "/store/" + PlaintextString + " HTTP/1.1");
+      Serial.println(HTTP_METHOD + " " + PATH_NAME + "/store/" + PlaintextString + " HTTP/1.1");
+      connection.println("Host: " + String(HOST_NAME));
+      connection.println("Connection: close");
+      connection.println(); 
+    } else {
+      Serial.println("Connection failed");
+    }
+
+    /* // Print debug info: answer from server
+    delay(100);
+    while(connection.available())
+    {
+      // read an incoming byte from the server and print them to serial monitor:
+      char c = connection.read();
+      Serial.print(c);
+    }
+    */    
+  
+    if(!connection.connected()) connection.stop();
   }
 
-  /* // Print debug info: answer from server
-  delay(100);
-  while(connection.available())
-  {
-    // read an incoming byte from the server and print them to serial monitor:
-    char c = connection.read();
-    Serial.print(c);
-  }
-  */    
 
-  if(!connection.connected()) connection.stop();
-
-  for(k=0;k<60;k++){
     // Read sensors every second
     // Read TSL
     SensorTSL.getEvent(&event);
@@ -303,6 +307,5 @@ void loop()
       checkIaqSensorStatus();
     }
     drawText();
-    delay(1000);
-  }
+    delay(500);
 }
