@@ -103,7 +103,7 @@ static void drawText()
       snprintf(TemperatureChars, sizeof TemperatureChars, "Temperature: %.2f C", iaqSensor.temperature);
       snprintf(PressureChars, sizeof PressureChars, "Pressure: %.1f hPa", iaqSensor.pressure / 100.0);
       snprintf(HumidityChars, sizeof HumidityChars, "Humidity: %.1f %%", iaqSensor.humidity);
-      snprintf(AqiChars, sizeof AqiChars, "AQI: %.1f    ", iaqSensor.iaq);
+      snprintf(AqiChars, sizeof AqiChars, "AQI: %.1f    ", iaqSensor.staticIaq);
       snprintf(LuxChars, sizeof LuxChars, "Light: %4.0f lux ", LuxFloat);
       
       ssd1306_positiveMode();
@@ -259,15 +259,31 @@ void loop()
 	// Share results every 60 seconds
   if((CurrentEpochTime - LastUpdateEpochTime) > delay5){
     LastUpdateEpochTime = timeClient.getEpochTime();
+
+    //Send data to local server
+    if(connection.connect(HOST_NAME_LCL, HTTP_PORT_LCL)) {
+      connection.println(HTTP_METHOD_LCL + " " + PATH_NAME_LCL + PlaintextString + " HTTP/1.1");
+      Serial.println("http://" + String(HOST_NAME_LCL) +":"+ HTTP_PORT_LCL + PATH_NAME_LCL + PlaintextString + " HTTP/1.1");
+      connection.println("Host: " + String(HOST_NAME_LCL));
+      connection.println("Connection: close");
+      connection.println(); 
+    } else {
+      Serial.println("Connection failed");
+    }
+
+    if(!connection.connected()) connection.stop();
+
+    //Send data to internet server
     if(connection.connect(HOST_NAME, HTTP_PORT)) {
       connection.println(HTTP_METHOD + " " + PATH_NAME + "/store/" + PlaintextString + " HTTP/1.1");
-      Serial.println(HTTP_METHOD + " " + PATH_NAME + "/store/" + PlaintextString + " HTTP/1.1");
+      Serial.println("http://" + String(HOST_NAME) +":"+ HTTP_PORT + PATH_NAME + "/store/" + PlaintextString + " HTTP/1.1");
       connection.println("Host: " + String(HOST_NAME));
       connection.println("Connection: close");
       connection.println(); 
     } else {
       Serial.println("Connection failed");
     }
+
 
     /* // Print debug info: answer from server
     delay(100);
